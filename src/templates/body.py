@@ -79,6 +79,49 @@ def load_file_content():
     if st.session_state.uploaded_file is not None:
         st.session_state.input_text = st.session_state.uploaded_file.read().decode("utf-8")
 
+def apply_alignment(mode):
+    text = st.session_state.input_text
+    lines = text.split('\n')
+
+    # Extraemos el número de línea seleccionada (restando 1 porque las listas inician en 0)
+    target_idx = st.session_state.get("target_line", 1) - 1
+    
+    if 0 <= target_idx < len(lines):
+        line = lines[target_idx]
+        stripped_line = line.strip()
+        
+        if stripped_line: # Solo procedemos si la línea no está completamente vacía
+            b_len = 0
+            for char in stripped_line:
+                cells = 0
+                if char.isupper():
+                    cells += 1
+                    if char.lower() in braille_alphabet:
+                        cells += 1
+                elif char.isdigit():
+                    cells += 1
+                    if char in braille_numbers:
+                        cells += 1
+                elif char in braille_punctuation:
+                    cells += 1
+                elif char.lower() in braille_alphabet:
+                    cells += 1
+                b_len += cells
+
+            # Solo aplicamos espacios si la longitud es menor al límite de 30 celdas
+            if b_len < 30:
+                spaces_needed = 30 - b_len
+                if mode == "center":
+                    pad_left = spaces_needed // 2
+                    lines[target_idx] = (" " * pad_left) + stripped_line
+                elif mode == "right":
+                    lines[target_idx] = (" " * spaces_needed) + stripped_line
+                else: # left
+                    lines[target_idx] = stripped_line
+
+    # Reconstruimos el texto y forzamos la actualización visual
+    st.session_state.input_text = '\n'.join(lines)
+    st.session_state.preview_page = 1
 
 def body():
     # Inicialización del estado de la sesión
@@ -107,14 +150,89 @@ def body():
     with col_editor:
         st.markdown("<h2 style='letter-spacing: 1px;'>Scriptorium</h2>", unsafe_allow_html=True)
 
-        st.text_area(
+        # Calculamos cuántas líneas existen actualmente para el selector
+        current_lines_count = max(1, len(st.session_state.input_text.split('\n')))
+
+        # --- ACTUALIZACIÓN: Barra de herramientas con Selector de Línea ---
+        st.markdown("<span style='font-size: 14px; color: #555; font-weight: 600;'>Herramientas de Párrafo</span>", unsafe_allow_html=True)
+        col_line, col_btn_l, col_btn_c, col_btn_r = st.columns([1.5, 1, 1, 1])
+
+        with col_line:
+            st.number_input(
+                "Línea N°", 
+                min_value=1, 
+                max_value=current_lines_count, 
+                value=1, 
+                key="target_line", 
+                help="Indica el número del renglón que deseas alinear."
+            )
+        with col_btn_l:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            st.button("⫷ Izq.", width='stretch', on_click=apply_alignment, args=("left",))
+        with col_btn_c:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            st.button("≡ Cen.", width='stretch', on_click=apply_alignment, args=("center",))
+        with col_btn_r:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            st.button("⫸ Der.", width='stretch', on_click=apply_alignment, args=("right",))
+
+        current_input = st.text_area(
             "Texto original a transcribir:", 
-            height=480,
+            height=400,
             key="input_text",
             label_visibility="collapsed",
             placeholder="Escribe o edita el texto aquí para acuñar la matriz Braille..."
         )
 
+        # --- Vigilancia de Desbordamiento en Tiempo Real ---
+        if current_input:
+            lines = current_input.split('\n')
+            overflow_html = ""
+
+            for i, line in enumerate(lines):
+                braille_len = 0
+                safe_chars = []
+                danger_chars = []
+
+                for char in line:
+                    cells = 0
+                    if char.isupper():
+                        cells += 1
+                        if char.lower() in braille_alphabet:
+                            cells += 1
+                    elif char.isdigit():
+                        cells += 1
+                        if char in braille_numbers:
+                            cells += 1
+                    elif char in braille_punctuation:
+                        cells += 1
+                    elif char.lower() in braille_alphabet:
+                        cells += 1
+
+                    if braille_len + cells <= 30:
+                        safe_chars.append(char)
+                    else:
+                        danger_chars.append(char)
+
+                    braille_len += cells
+
+                if braille_len > 30:
+                    safe_text = html.escape("".join(safe_chars))
+                    danger_text = html.escape("".join(danger_chars))
+
+                    overflow_html += f"<div style='font-family: monospace; font-size: 13px; margin-top: 4px;'>"
+                    overflow_html += f"<span style='color: #888;'>Lín {i+1}: </span>"
+                    overflow_html += f"<span style='color: #aaa;'>...{safe_text[-10:] if len(safe_text) > 10 else safe_text}</span>"
+                    overflow_html += f"<mark style='background-color: #ff4b4b; color: white; padding: 0 3px; border-radius: 2px; font-weight: bold;'>{danger_text}</mark>"
+                    overflow_html += f"</div>"
+
+            if overflow_html:
+                st.markdown("<div style='border-left: 3px solid #ff4b4b; padding-left: 10px; margin-top: 10px; background-color: rgba(255, 75, 75, 0.05); padding: 10px; border-radius: 0 4px 4px 0;'>", unsafe_allow_html=True)
+                st.markdown("**⚠️ Exceso de 30 celdas detectado:**", unsafe_allow_html=True)
+                st.markdown(overflow_html, unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Transcribir y Acuñar en Braille", type="primary", width='stretch'):
             st.session_state.preview_page = 1
 
@@ -176,7 +294,7 @@ def body():
                 lines = current_text.split('\n')
                 overflow_count = 0
 
-                html_code = "<div style='font-family: monospace; font-size: 14px;'>"
+                html_code_analisis = "<div style='font-family: monospace; font-size: 14px;'>"
 
                 for i, line in enumerate(lines):
                     braille_len = 0
@@ -216,21 +334,21 @@ def body():
                         safe_html = html.escape(safe_text)
                         danger_html = html.escape(danger_text)
 
-                        html_code += f"<div style='margin-bottom: 6px; border-bottom: 1px solid rgba(128,128,128,0.2); padding-bottom: 4px;'>"
-                        html_code += f"<span style='color: #888; font-weight: bold;'>Folio {page_num} | Lín {line_in_page:02d}: </span>"
-                        html_code += f"<span>{safe_html}</span>"
-                        html_code += f"<mark style='background-color: #ff4b4b; color: white; padding: 0 2px; border-radius: 3px;'>{danger_html}</mark>"
-                        html_code += f" <span style='color: #ff4b4b; font-weight: bold;'>({braille_len}/30 celdas)</span>"
-                        html_code += f"</div>"
+                        html_code_analisis += f"<div style='margin-bottom: 6px; border-bottom: 1px solid rgba(128,128,128,0.2); padding-bottom: 4px;'>"
+                        html_code_analisis += f"<span style='color: #888; font-weight: bold;'>Folio {page_num} | Lín {line_in_page:02d}: </span>"
+                        html_code_analisis += f"<span style='white-space: pre-wrap;'>{safe_html}</span>"
+                        html_code_analisis += f"<mark style='background-color: #ff4b4b; color: white; padding: 0 2px; border-radius: 3px;'>{danger_html}</mark>"
+                        html_code_analisis += f" <span style='color: #ff4b4b; font-weight: bold;'>({braille_len}/30 celdas)</span>"
+                        html_code_analisis += f"</div>"
 
-                html_code += "</div>"
+                html_code_analisis += "</div>"
 
                 if overflow_count == 0:
                     st.success("**OK:** Ninguna línea supera el umbral de las 30 celdas. La matriz textual fluirá intacta.")
                 else:
                     st.warning(f"⚠️ **Alerta de Desbordamiento:** Se detectaron **{overflow_count} línea(s)** que exceden la capacidad permitida. Modifica los cortes en el Scriptorium.")
                     with st.container(height=350):
-                        st.markdown(html_code, unsafe_allow_html=True)
+                        st.markdown(html_code_analisis, unsafe_allow_html=True)
 
         else:
             st.info("A la espera de un manuscrito en el Scriptorium para labrar el texto e iniciar la previsualización...")
