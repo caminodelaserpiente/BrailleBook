@@ -1,0 +1,27 @@
+Dan supo más tarde que había
+habido un tiempo en el que
+cualquiera podía tener un
+depurador. Incluso había
+herramientas de depuración
+libres disponibles en Cd o
+que se podían descargar de la
+red, pero los usuarios comunes
+empezaron a usarlas para
+saltarse los controles de
+copyright, y finalmente un
+juez dictaminó que este se
+había convertido en el
+principal uso que se les daba
+en la práctica. Eso quería
+decir que eran ilegales, y los
+desarrolladores de esas
+herramientas de depuración
+fueron a parar a la cárcel.
+
+Obviamente, los programadores
+necesitan herramientas de
+depuración, pero en 2jdg
+los vendedores de estas
+herramientas solo distribuían
+copias numeradas, y solo a
+              6
