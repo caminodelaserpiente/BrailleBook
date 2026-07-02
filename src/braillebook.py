@@ -116,6 +116,10 @@ braille_punctuation = {
     '«': '001011', '»': '001011', '-': '000011', '*': '000110',
 }
 
+braille_multicell = {
+    '/': ['000001', '001000']
+}
+
 # --- Funciones de Dibujo Braille ---
 
 def _binary_to_braille(binary_string):
@@ -223,67 +227,46 @@ def create_braille_pdf(text, mirror=False):
     # Iterar sobre cada carácter del texto de entrada
     for char_index, char in enumerate(text):
         if char == '\n':
-            # Si encontramos un salto de línea explícito, forzamos un avance a la siguiente línea de braille
-            # solo si la línea actual no está vacía o si es la primera línea (para evitar saltos dobles al inicio).
-            # Esta condición asegura que un '\n' siempre avance la línea, incluso si es el primer carácter.
-            # Y que un segundo '\n' consecutivo genere una línea vacía.
             move_to_next_braille_line()
-            continue # Pasar al siguiente carácter
+            continue 
 
-        # Lógica para avanzar a la siguiente línea si la actual está llena
-        if num_cells_in_current_braille_line >= MAX_CELLS_PER_LINE:
-            move_to_next_braille_line()
+        # 1. Recolectar la secuencia completa de celdas para este carácter
+        celdas_a_dibujar = []
 
-        # Determinar el binario braille y marcadores
-        braille_binary = None
-        is_uppercase = False
-        is_digit = False
-
-        # Procesamiento de mayúsculas, números y puntuación
         if char.isupper():
-            is_uppercase = True
             char_lower = char.lower()
             if char_lower in braille_alphabet:
-                braille_binary = braille_alphabet[char_lower]
+                celdas_a_dibujar.append(braille_uppercase_marker)
+                celdas_a_dibujar.append(braille_alphabet[char_lower])
         elif char.isdigit():
-            is_digit = True
             if char in braille_numbers:
-                braille_binary = braille_numbers[char]
+                celdas_a_dibujar.append(braille_number_marker)
+                celdas_a_dibujar.append(braille_numbers[char])
+        elif char in braille_multicell:
+            # Símbolos de 2 o más celdas (como el slash)
+            celdas_a_dibujar.extend(braille_multicell[char])
         elif char in braille_punctuation:
-            braille_binary = braille_punctuation[char]
-        elif char.lower() in braille_alphabet: # Manejo de minúsculas y caracteres acentuados
-            braille_binary = braille_alphabet[char.lower()]
-        # Si el carácter no se puede mapear, simplemente se ignora.
+            celdas_a_dibujar.append(braille_punctuation[char])
+        elif char.lower() in braille_alphabet:
+            celdas_a_dibujar.append(braille_alphabet[char.lower()])
 
-        # Dibujar el marcador de mayúsculas si es necesario
-        if is_uppercase:
-            braille_cell_data = _binary_to_braille(braille_uppercase_marker)
-            # Pasamos 'y' directamente, que ahora es la parte superior de la celda.
-            _draw_braille_cell(c, x, y, braille_cell_data)
-            x += CELL_ADVANCE_WIDTH
-            num_cells_in_current_braille_line += 1
-            # Verificar de nuevo si el marcador llenó la línea y necesita un salto de línea
-            if num_cells_in_current_braille_line >= MAX_CELLS_PER_LINE:
+        # 2. Vigilancia de Desbordamiento en Tiempo Real
+        if len(celdas_a_dibujar) > 0:
+            # Evaluar si la secuencia entera cabe en el espacio restante de la línea
+            if num_cells_in_current_braille_line + len(celdas_a_dibujar) > MAX_CELLS_PER_LINE:
                 move_to_next_braille_line()
 
-        # Dibujar el marcador de número si es necesario
-        if is_digit:
-            braille_cell_data = _binary_to_braille(braille_number_marker)
-            # Pasamos 'y' directamente, que ahora es la parte superior de la celda.
-            _draw_braille_cell(c, x, y, braille_cell_data)
-            x += CELL_ADVANCE_WIDTH
-            num_cells_in_current_braille_line += 1
-            # Verificar de nuevo si el marcador llenó la línea y necesita un salto de línea
-            if num_cells_in_current_braille_line >= MAX_CELLS_PER_LINE:
-                move_to_next_braille_line()
+            # 3. Dibujar las celdas de forma secuencial garantizando que no se separen
+            for binario in celdas_a_dibujar:
+                # Chequeo de seguridad por si una secuencia por sí sola supera MAX_CELLS_PER_LINE
+                if num_cells_in_current_braille_line >= MAX_CELLS_PER_LINE:
+                    move_to_next_braille_line()
 
-        # Dibujar el carácter braille real
-        if braille_binary:
-            braille_cell_data = _binary_to_braille(braille_binary)
-            # Pasamos 'y' directamente, que ahora es la parte superior de la celda.
-            _draw_braille_cell(c, x, y, braille_cell_data)
-            x += CELL_ADVANCE_WIDTH
-            num_cells_in_current_braille_line += 1
+                braille_cell_data = _binary_to_braille(binario)
+                _draw_braille_cell(c, x, y, braille_cell_data)
+                
+                x += CELL_ADVANCE_WIDTH
+                num_cells_in_current_braille_line += 1
 
     # Asegurar que la última línea de braille se guarde, incluso si no llenó la página
     c.save()
