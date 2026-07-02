@@ -101,7 +101,7 @@ braille_alphabet = {
     'z': '100111', ' ': '000000', # El espacio en braille es una celda vacía
 
     'á': '101111', 'é': '011011', 'í': '010010', 'ó': '010011', 'ú': '011111',
-    'ñ': '110101'
+    'ñ': '111101'
 }
 
 braille_numbers = {
