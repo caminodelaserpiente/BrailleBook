@@ -23,8 +23,29 @@ from src.braillebook import (
     get_pdf_page_count,
     braille_alphabet,
     braille_numbers,
-    braille_punctuation
+    braille_punctuation,
+    braille_multicell
 )
+
+def get_char_cell_count(char):
+    """Calcula cuántas celdas Braille físicas ocupa un carácter."""
+    cells = 0
+    if char.isupper():
+        cells += 1
+        if char.lower() in braille_alphabet:
+            cells += 1
+    elif char.isdigit():
+        cells += 1
+        if char in braille_numbers:
+            cells += 1
+    elif char in braille_multicell:
+        # Suma la cantidad de celdas que requiere el símbolo especial (ej. 2 para el slash)
+        cells += len(braille_multicell[char])
+    elif char in braille_punctuation:
+        cells += 1
+    elif char.lower() in braille_alphabet:
+        cells += 1
+    return cells
 
 def config_page():
     st.set_page_config(
@@ -93,19 +114,7 @@ def apply_alignment(mode):
         if stripped_line: # Solo procedemos si la línea no está completamente vacía
             b_len = 0
             for char in stripped_line:
-                cells = 0
-                if char.isupper():
-                    cells += 1
-                    if char.lower() in braille_alphabet:
-                        cells += 1
-                elif char.isdigit():
-                    cells += 1
-                    if char in braille_numbers:
-                        cells += 1
-                elif char in braille_punctuation:
-                    cells += 1
-                elif char.lower() in braille_alphabet:
-                    cells += 1
+                cells = get_char_cell_count(char)
                 b_len += cells
 
             # Solo aplicamos espacios si la longitud es menor al límite de 30 celdas
@@ -195,19 +204,7 @@ def body():
                 danger_chars = []
 
                 for char in line:
-                    cells = 0
-                    if char.isupper():
-                        cells += 1
-                        if char.lower() in braille_alphabet:
-                            cells += 1
-                    elif char.isdigit():
-                        cells += 1
-                        if char in braille_numbers:
-                            cells += 1
-                    elif char in braille_punctuation:
-                        cells += 1
-                    elif char.lower() in braille_alphabet:
-                        cells += 1
+                    cells = get_char_cell_count(char)
 
                     if braille_len + cells <= 30:
                         safe_chars.append(char)
@@ -302,19 +299,7 @@ def body():
                     danger_chars = []
 
                     for char in line:
-                        cells = 0
-                        if char.isupper():
-                            cells += 1
-                            if char.lower() in braille_alphabet:
-                                cells += 1
-                        elif char.isdigit():
-                            cells += 1
-                            if char in braille_numbers:
-                                cells += 1
-                        elif char in braille_punctuation:
-                            cells += 1
-                        elif char.lower() in braille_alphabet:
-                            cells += 1
+                        cells = get_char_cell_count(char)
 
                         if braille_len + cells <= 30:
                             safe_chars.append(char)
